@@ -75,6 +75,19 @@ async def scrape_google_maps(
             last_lead_time = time.time()
             prev_leads_count = 0
 
+            # Build normalized exclude set for robust deduplication across subtitle variations
+            if exclude_names is None:
+                exclude_names = set()
+
+            normalized_excludes = set()
+            for n in exclude_names:
+                if n:
+                    raw_n = str(n).strip().lower()
+                    normalized_excludes.add(raw_n)
+                    norm_n = re.sub(r'[^a-z0-9]', '', raw_n.split('-')[0].split('|')[0])
+                    if norm_n:
+                        normalized_excludes.add(norm_n)
+
             while len(leads) < limit and scroll_attempts < max_scrolls:
                 scroll_attempts += 1
                 
@@ -167,7 +180,10 @@ async def scrape_google_maps(
                         continue
                     scraped_names.add(name)
 
-                    if name.strip().lower() in exclude_names:
+                    clean_name = name.strip().lower()
+                    norm_name = re.sub(r'[^a-z0-9]', '', clean_name.split('-')[0].split('|')[0])
+
+                    if clean_name in normalized_excludes or (norm_name and norm_name in normalized_excludes):
                         logger.info(f"⏩ [SKIP - ALREADY DELIVERED PREVIOUSLY] '{name}'")
                         continue
 

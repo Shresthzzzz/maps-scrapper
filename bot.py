@@ -198,7 +198,11 @@ async def run_scrape_and_send(update: Update, query: str, count: int):
 
             for index, lead in enumerate(leads, 1):
                 # Record lead name to prevent future duplicates for this chat
-                delivered_set.add(lead["name"].strip().lower())
+                raw_lead_name = lead["name"].strip().lower()
+                norm_lead_name = re.sub(r'[^a-z0-9]', '', raw_lead_name.split('-')[0].split('|')[0])
+                delivered_set.add(raw_lead_name)
+                if norm_lead_name:
+                    delivered_set.add(norm_lead_name)
 
                 # Generate AI Sales Pitch
                 pitch = generate_pitch(lead)
