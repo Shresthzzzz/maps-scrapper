@@ -20,7 +20,7 @@ def get_ai_client():
 
 def generate_pitch(lead: dict) -> str:
     """
-    Generates a personalized cold DM pitch for a business lacking a website.
+    Generates a personalized cold DM pitch for a business lacking a website using Nexaura's Gold Standard Master Template.
     """
     business_name = lead.get("name", "Business")
     category = lead.get("category", "Local Business")
@@ -29,42 +29,78 @@ def generate_pitch(lead: dict) -> str:
     rating = lead.get("rating", "N/A")
     reviews = lead.get("reviews", "N/A")
 
+    # Dynamic profession mapping for fallback & AI guidance
+    cat_lower = (category or "").lower()
+    if any(w in cat_lower for w in ["clinic", "dentist", "doctor", "health", "hospital", "medical", "dermatology"]):
+        audience = "patient"
+        goal = "bookings"
+    elif any(w in cat_lower for w in ["real estate", "realty", "property", "broker", "agent"]):
+        audience = "buyer"
+        goal = "inquiries"
+    elif any(w in cat_lower for w in ["plumber", "electrician", "handyman", "repair", "service", "clean", "hvac"]):
+        audience = "client"
+        goal = "service calls"
+    elif any(w in cat_lower for w in ["salon", "spa", "gym", "fitness", "barber", "beauty"]):
+        audience = "client"
+        goal = "appointment bookings"
+    elif any(w in cat_lower for w in ["law", "lawyer", "attorney", "legal", "accounting", "consultant"]):
+        audience = "client"
+        goal = "consultations"
+    elif any(w in cat_lower for w in ["restaurant", "cafe", "bakery", "food", "dining"]):
+        audience = "customer"
+        goal = "orders and table reservations"
+    else:
+        audience = "customer"
+        goal = "bookings and inquiries"
+
+    template_fallback = (
+        f"Hi {business_name} team,\n\n"
+        f"I love what you've built—your online presence is already strong. However, we noticed a few quick technical tweaks that could significantly improve your {audience} user experience and streamline operations.\n\n"
+        f"At Nexaura, we help businesses scale by automating appointment systems, upgrading websites, and building out custom tech solutions.\n\n"
+        f"Would you be open to a quick 10-minute chat this week to see how we can help you streamline {goal}? Let me know what day and time works best for you.\n\n"
+        f"Best,\n\n"
+        f"Nexaura"
+    )
+
     client = get_ai_client()
 
     if not client:
-        # Fallback high-quality template if API Key is missing or unavailable
-        return (
-            f"Hey team at {business_name}! 👋\n\n"
-            f"I came across your high rating ({rating}⭐) on Google Maps in {location}. "
-            f"I noticed your Google profile doesn't have a website attached—meaning you're likely losing dozens of prospective local clients every week to competitors.\n\n"
-            f"At NEXAURA, we build modern, conversion-focused websites & lead capture systems for {category}. "
-            f"Would you be open to a quick, free 2-minute site preview mockup for {business_name}?"
-        )
+        return template_fallback
 
-    system_prompt = """You are an elite B2B cold outreach copywriter for NEXAURA, a modern technology and digital studio that builds high-converting business websites, AI systems, and lead capture workflows.
+    system_prompt = f"""You are the AI cold outreach copywriter for Nexaura.
 
-YOUR GOAL: Write a short, highly-personalized, 100% human-sounding cold DM (40 to 70 words) to a business owner who has NO website on Google Maps.
+YOUR MISSION: Write a cold outreach DM for any business scraped from Google Maps following this EXACT Master Template structure and tone:
 
-RULES FOR NEXAURA OUTREACH:
-1. Write directly on behalf of NEXAURA ("We at NEXAURA", "We're NEXAURA, a digital studio").
-2. Compliment their Google reputation, rating, or reviews.
-3. Gently point out that lacking a website on Google Maps loses prospective clients to competitors.
-4. Offer a low-friction value step from NEXAURA (asking if they'd like a quick, free 2-minute website mockup preview).
-5. Keep it conversational, personal, concise, and response-focused.
-6. Output ONLY the raw outreach message itself. DO NOT include subject lines, quotes, labels, or explanatory commentary.
+--- MASTER TEMPLATE ---
+Hi [Business Name] team,
+
+I love what you've built—your online presence is already strong. However, we noticed a few quick technical tweaks that could significantly improve your [target audience: patient / client / customer / buyer] user experience and streamline operations.
+
+At Nexaura, we help businesses scale by automating appointment systems, upgrading websites, and building out custom tech solutions.
+
+Would you be open to a quick 10-minute chat this week to see how we can help you streamline [target goal: bookings / inquiries / service calls / consultations]? Let me know what day and time works best for you.
+
+Best,
+
+Nexaura
+--- END TEMPLATE ---
+
+RULES:
+1. Follow the template's EXACT greeting ("Hi [Business Name] team,"), 3-paragraph structure, tone, and sign-off ("Best,\n\nNexaura").
+2. Adapt terms like '[target audience]' and '[target goal]' dynamically based on the prospect's profession.
+3. Output ONLY the ready-to-send DM message text. Do NOT add commentary, subject lines, or quotes.
 """
 
     user_prompt = f"""
 Prospect Details:
 - Business Name: {business_name}
-- Category: {category}
+- Profession / Category: {category}
 - Location: {location}
-- Phone: {phone}
-- Rating: {rating} stars ({reviews} reviews)
-- Status: NO WEBSITE on Google Maps
+- Target Audience Term: {audience}
+- Target Goal Term: {goal}
 
 Instructions:
-Write a short, high-converting cold DM message for NEXAURA (under 60 words).
+Write the exact outreach DM using Nexaura's Master Template.
 Return ONLY the final ready-to-send message.
 """
 
@@ -87,11 +123,12 @@ Return ONLY the final ready-to-send message.
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.7,
+                temperature=0.4,
                 max_tokens=250
             )
             pitch = response.choices[0].message.content.strip()
-            return pitch
+            if pitch and len(pitch) > 30:
+                return pitch
         except Exception as e:
             err_str = str(e)
             if "429" in err_str or "FreeUsageLimitError" in err_str or "Rate limit" in err_str:
@@ -100,10 +137,4 @@ Return ONLY the final ready-to-send message.
                 logger.warning(f"AI model '{model_name}' error: {err_str}")
             continue
 
-    # Return fallback template if all API calls encounter issues
-    return (
-        f"Hey team at {business_name}! 👋\n\n"
-        f"I came across your high rating ({rating}⭐) on Google Maps in {location}. "
-        f"I noticed your Google profile doesn't have a website attached—meaning you're likely losing prospective local clients to competitors.\n\n"
-        f"At NEXAURA, we build modern, conversion-focused websites & lead capture systems for {category}. Could I send over a quick free 2-minute site preview mockup for {business_name}?"
-    )
+    return template_fallback
