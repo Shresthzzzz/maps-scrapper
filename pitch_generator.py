@@ -60,7 +60,7 @@ Instructions:
 5. Keep it natural, professional, and friendly. Do not use hashtags.
 """
 
-    candidate_models = list(dict.fromkeys([config.AI_MODEL, "deepseek-v4-flash-free", "mimo-v2.5-free", "big-pickle", "laguna-s-2.1-free"]))
+    candidate_models = list(dict.fromkeys([config.AI_MODEL, "big-pickle", "deepseek-v4-flash-free", "mimo-v2.5-free", "laguna-s-2.1-free"]))
 
     for model_name in candidate_models:
         try:
