@@ -1,0 +1,23 @@
+services:
+  - type: worker
+    name: telegram-maps-lead-bot
+    env: docker
+    dockerfilePath: Dockerfile
+    plan: free
+    region: oregon
+    autoDeploy: true
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: OPENCODE_ZEN_API_KEY
+        sync: false
+      - key: OPENCODE_ZEN_BASE_URL
+        value: https://opencode.ai/api/v1
+      - key: AI_MODEL
+        value: opencode/zen-1
+      - key: HEADLESS
+        value: "true"
+      - key: DEFAULT_NICHE
+        value: "plumbers in Miami"
+      - key: MAX_LEADS_PER_SCRAPE
+        value: "100"

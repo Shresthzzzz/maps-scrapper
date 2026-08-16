@@ -1,0 +1,24 @@
+# Environment variables (secrets)
+.env
+
+# Python cache & bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# Playwright & Browser cache
+.playwright/
+downloads/
+screenshots/
+
+# IDE & System
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
