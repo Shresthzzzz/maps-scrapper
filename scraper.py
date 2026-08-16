@@ -64,9 +64,11 @@ async def scrape_google_maps(
         page = await context.new_page()
 
         try:
-            await page.goto(search_url, wait_until="domcontentloaded", timeout=45000)
+            # Force English language for consistent DOM selectors
+            search_url_en = f"{search_url}?hl=en"
+            await page.goto(search_url_en, wait_until="domcontentloaded", timeout=45000)
             await dismiss_google_consent(page)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(2000)
 
             # Locate the results feed panel
             feed_selector = "div[role='feed']"
@@ -76,7 +78,6 @@ async def scrape_google_maps(
                 logger.warning("Results feed selector not found. Retrying alternate selector...")
 
             # Scroll and gather items
-            items_processed = 0
             attempts = 0
             max_attempts = limit * 4
 
@@ -104,7 +105,7 @@ async def scrape_google_maps(
                             window.scrollBy(0, 1000);
                         }
                     """)
-                    await page.wait_for_timeout(1500)
+                    await page.wait_for_timeout(1000)
                 except Exception:
                     pass
 
@@ -126,19 +127,19 @@ async def scrape_google_maps(
                             continue
 
                         # Check if card directly displays website icon / button in listing
-                        website_button = card.locator("a[aria-label*='website'], a[data-value='Website'], a[aria-label*='Website']")
+                        website_button = card.locator("a[aria-label*='website'], a[aria-label*='Website'], a[data-value='Website']")
                         has_website = False
                         website_url = None
 
                         if await website_button.count() > 0:
                             website_url = await website_button.first.get_attribute("href")
-                            if website_url and len(website_url) > 5 and not "google.com" in website_url:
+                            if website_url and len(website_url) > 5 and "google.com" not in website_url:
                                 has_website = True
 
                         # Click on card to open detailed view panel
                         try:
                             await name_el.click(timeout=3000)
-                            await page.wait_for_timeout(1500)
+                            await page.wait_for_timeout(1000)
                         except Exception:
                             continue
 
@@ -201,17 +202,21 @@ async def scrape_google_maps(
                         # Extract Google Maps current URL
                         maps_url = page.url
 
-                        # Search detail pane for social media links
-                        social_links = []
-                        all_links = await page.locator("a[href]").all()
-                        for link in all_links:
-                            try:
-                                href = await link.get_attribute("href")
-                                if href and any(dom in href.lower() for dom in SOCIAL_DOMAINS):
-                                    if href not in social_links:
-                                        social_links.append(href)
-                            except Exception:
-                                pass
+                        # Fast instant V8 evaluation for social media links
+                        social_links = await page.evaluate("""
+                            () => {
+                                const links = Array.from(document.querySelectorAll("a[href]"));
+                                const domains = ["instagram.com", "facebook.com", "twitter.com", "x.com", "linkedin.com", "tiktok.com"];
+                                const found = [];
+                                for (const l of links) {
+                                    const href = l.href || "";
+                                    if (domains.some(d => href.toLowerCase().includes(d))) {
+                                        if (!found.includes(href)) found.push(href);
+                                    }
+                                }
+                                return found;
+                            }
+                        """)
 
                         lead = {
                             "name": name,

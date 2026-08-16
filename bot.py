@@ -130,10 +130,13 @@ async def run_scrape_and_send(update: Update, query: str, count: int):
                     pass
 
         try:
-            leads = await scrape_google_maps(
-                query=query,
-                limit=count,
-                progress_callback=progress_update
+            leads = await asyncio.wait_for(
+                scrape_google_maps(
+                    query=query,
+                    limit=count,
+                    progress_callback=progress_update
+                ),
+                timeout=120.0
             )
 
             if not leads:
