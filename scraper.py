@@ -11,13 +11,18 @@ logger = logging.getLogger(__name__)
 async def scrape_google_maps(
     query: str,
     limit: int = 10,
-    progress_callback: Optional[Callable[[int, int, str], asyncio.Task]] = None
+    progress_callback: Optional[Callable[[int, int, str], asyncio.Task]] = None,
+    exclude_names: Optional[set] = None
 ) -> List[Dict]:
     """
     Scrapes Google Maps for businesses matching query.
-    Filters out businesses that ALREADY have a website.
+    Filters out businesses that ALREADY have a website or have been previously delivered.
     Returns qualified leads without a website.
     """
+    if exclude_names is None:
+        exclude_names = set()
+    else:
+        exclude_names = {n.strip().lower() for n in exclude_names}
     leads: List[Dict] = []
     scraped_names = set()
     
@@ -148,6 +153,10 @@ async def scrape_google_maps(
                     if name in scraped_names:
                         continue
                     scraped_names.add(name)
+
+                    if name.strip().lower() in exclude_names:
+                        logger.info(f"⏩ [SKIP - ALREADY DELIVERED PREVIOUSLY] '{name}'")
+                        continue
 
                     if c["hasWebsite"]:
                         logger.info(f"⏩ [SKIP - HAS WEBSITE] '{name}' -> Website: {c['websiteUrl']}")

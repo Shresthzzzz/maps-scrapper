@@ -30,9 +30,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+import json
+
 # Active scraping lock to prevent overlapping heavy Playwright instances
 scrape_lock = asyncio.Lock()
 user_niches = {}
+
+DELIVERED_LEADS_FILE = "delivered_leads.json"
+
+def load_delivered_leads() -> dict:
+    if os.path.exists(DELIVERED_LEADS_FILE):
+        try:
+            with open(DELIVERED_LEADS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return {int(k): set(v) for k, v in data.items()}
+        except Exception as e:
+            logger.warning(f"Could not load delivered leads file: {e}")
+    return {}
+
+def save_delivered_leads(data: dict):
+    try:
+        serializable = {str(k): list(v) for k, v in data.items()}
+        with open(DELIVERED_LEADS_FILE, "w", encoding="utf-8") as f:
+            json.dump(serializable, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.warning(f"Could not save delivered leads file: {e}")
+
+user_delivered_leads = load_delivered_leads()
 
 def escape_html(text: str) -> str:
     """Safely escapes text for Telegram HTML parsing."""
@@ -55,6 +79,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• <code>/find 10 plumbers in Miami</code> — Scrape 10 leads matching a query.\n"
         "• Type a number like <code>10</code>, <code>20</code>, <code>50</code> — Scrapes default niche.\n"
         "• <code>/setniche dental clinics in Dallas</code> — Set your default niche/location.\n"
+        "• <code>/reset</code> — Clear delivered lead history for this chat.\n"
         "• <code>/status</code> — Check system configuration and API setup.\n"
         "• <code>/help</code> — Show this help guide."
     )
@@ -134,22 +159,27 @@ async def run_scrape_and_send(update: Update, query: str, count: int):
                 except Exception as edit_err:
                     logger.debug(f"Progress update edit error: {edit_err}")
 
+        chat_id = update.effective_chat.id
+        previous_leads = user_delivered_leads.get(chat_id, set())
+
         try:
-            logger.info(f"🚀 [LAUNCHING SCRAPER] Query: '{query}' | Limit: {count}")
+            logger.info(f"🚀 [LAUNCHING SCRAPER] Query: '{query}' | Limit: {count} | Exclude Previous: {len(previous_leads)}")
             leads = await asyncio.wait_for(
                 scrape_google_maps(
                     query=query,
                     limit=count,
-                    progress_callback=progress_update
+                    progress_callback=progress_update,
+                    exclude_names=previous_leads
                 ),
                 timeout=180.0
             )
 
             if not leads:
-                logger.warning(f"❌ [NO LEADS FOUND] 0 leads found without a website for query: '{query}'")
+                logger.warning(f"❌ [NO LEADS FOUND] 0 new leads found for query: '{query}'")
                 await status_msg.edit_text(
-                    f"❌ <b>No leads found without a website</b> for query: <code>{escape_html(query)}</code>.\n"
-                    f"Try searching a different location or niche!",
+                    f"❌ <b>No new leads found</b> for query: <code>{escape_html(query)}</code>.\n"
+                    f"<i>(Note: Any previously delivered businesses for this chat were skipped!)</i>\n"
+                    f"Try searching a different location or niche, or use <code>/reset</code> to clear your history.",
                     parse_mode="HTML"
                 )
                 return
@@ -157,13 +187,18 @@ async def run_scrape_and_send(update: Update, query: str, count: int):
             logger.info(f"✅ [SCRAPE SUCCESS] Found {len(leads)} qualified leads! Delivering cards to Telegram...")
             await status_msg.edit_text(
                 f"✅ <b>Scrape Completed!</b>\n"
-                f"Found <b>{len(leads)}</b> qualified businesses without a website.\n"
+                f"Found <b>{len(leads)}</b> NEW qualified businesses without a website.\n"
                 f"Sending individual lead cards with AI sales pitches now...",
                 parse_mode="HTML"
             )
 
             # Process and send each lead card
+            delivered_set = user_delivered_leads.setdefault(chat_id, set())
+
             for index, lead in enumerate(leads, 1):
+                # Record lead name to prevent future duplicates for this chat
+                delivered_set.add(lead["name"].strip().lower())
+
                 # Generate AI Sales Pitch
                 pitch = generate_pitch(lead)
 
@@ -195,6 +230,8 @@ async def run_scrape_and_send(update: Update, query: str, count: int):
                 )
                 # Small delay between messages to avoid rate limits
                 await asyncio.sleep(0.8)
+
+            save_delivered_leads(user_delivered_leads)
 
         except asyncio.TimeoutError:
             logger.error(f"❌ [TIMEOUT] Scrape job timed out after 180s for query '{query}'")
@@ -232,6 +269,19 @@ async def find_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = full_arg
 
     await run_scrape_and_send(update, query, count)
+
+async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Resets the delivered leads history for the current chat."""
+    chat_id = update.effective_chat.id
+    if chat_id in user_delivered_leads:
+        user_delivered_leads[chat_id] = set()
+        save_delivered_leads(user_delivered_leads)
+    await update.message.reply_text(
+        "🔄 <b>History Reset!</b>\n"
+        "Your previously delivered leads history has been cleared for this chat. "
+        "New searches will now include all leads again.",
+        parse_mode="HTML"
+    )
 
 async def text_number_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handler for plain text messages containing numbers like '10' or '25'."""
@@ -290,6 +340,7 @@ def main():
     application.add_handler(CommandHandler("status", status_command))
     application.add_handler(CommandHandler("setniche", setniche_command))
     application.add_handler(CommandHandler("find", find_command))
+    application.add_handler(CommandHandler("reset", reset_command))
 
     # Add Number Text Handler (1-100)
     application.add_handler(MessageHandler(filters.Regex(r"^\d+$"), text_number_handler))
