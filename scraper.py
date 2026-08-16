@@ -66,6 +66,7 @@ async def scrape_google_maps(
         try:
             # Force English language for consistent DOM selectors
             search_url_en = f"{search_url}?hl=en"
+            logger.info(f"🌐 [1/5 NAVIGATE] Navigating to Google Maps: {search_url_en}")
             await page.goto(search_url_en, wait_until="domcontentloaded", timeout=45000)
             await dismiss_google_consent(page)
             await page.wait_for_timeout(2000)
@@ -74,8 +75,9 @@ async def scrape_google_maps(
             feed_selector = "div[role='feed']"
             try:
                 await page.wait_for_selector(feed_selector, timeout=15000)
+                logger.info("✅ [2/5 FEED READY] Google Maps results feed container loaded successfully.")
             except PlaywrightTimeoutError:
-                logger.warning("Results feed selector not found. Retrying alternate selector...")
+                logger.warning("⚠️ [FEED WARNING] Results feed selector not found within 15s. Continuing...")
 
             # Scroll and gather items
             attempts = 0
@@ -88,10 +90,13 @@ async def scrape_google_maps(
                 cards = page.locator("div.Nv2pk, a.hfA8B, div[role='article']")
                 card_count = await cards.count()
 
+                logger.info(f"🔄 [3/5 SCROLL #{attempts}] Visible cards on page: {card_count} | Target leads without website: {len(leads)}/{limit}")
+
                 if card_count == 0:
-                    logger.warning("No business cards found on page yet. Waiting...")
+                    logger.warning("⏳ [WAITING] No business cards found on page yet. Waiting 2s...")
                     await page.wait_for_timeout(2000)
                     if attempts > 5:
+                        logger.error("❌ [SCRAPE ABORTED] 0 cards found after 5 scroll attempts.")
                         break
                     continue
 
@@ -155,11 +160,11 @@ async def scrape_google_maps(
 
                         # FILTER RULE: If business HAS a website, SKIP IT!
                         if has_website:
-                            logger.info(f"Skipping '{name}' - Has website: {website_url}")
+                            logger.info(f"⏩ [SKIP - HAS WEBSITE] '{name}' -> Website: {website_url}")
                             continue
 
                         # Extracted qualified lead (NO WEBSITE)
-                        logger.info(f"QUALIFIED LEAD FOUND (No Website): '{name}'")
+                        logger.info(f"🎯 [QUALIFIED LEAD #{len(leads)+1}] Found business WITHOUT website: '{name}'")
 
                         # Extract Rating & Reviews
                         rating = "N/A"
@@ -231,6 +236,7 @@ async def scrape_google_maps(
                         }
 
                         leads.append(lead)
+                        logger.info(f"✅ [LEAD STORED] Added lead #{len(leads)}: '{name}' | Phone: {phone}")
 
                         if progress_callback:
                             try:
@@ -242,11 +248,11 @@ async def scrape_google_maps(
                                 logger.error(f"Error in progress callback: {pe}")
 
                     except Exception as card_err:
-                        logger.debug(f"Error processing card index {i}: {card_err}")
+                        logger.error(f"⚠️ [CARD ERROR] Card index {i}: {card_err}")
                         continue
 
         except Exception as e:
-            logger.error(f"Scraper error during execution: {e}")
+            logger.error(f"❌ [SCRAPER FATAL ERROR] {e}", exc_info=True)
         finally:
             await context.close()
             await browser.close()

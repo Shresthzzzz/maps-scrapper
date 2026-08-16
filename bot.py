@@ -97,7 +97,11 @@ async def setniche_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def run_scrape_and_send(update: Update, query: str, count: int):
     """Core function to execute scrape, generate pitches, and deliver cards."""
+    user_id = update.effective_user.id
+    logger.info(f"📥 [COMMAND RECEIVED] User ID {user_id} requested: '{query}' (Target limit: {count})")
+
     if scrape_lock.locked():
+        logger.warning(f"⏳ [LOCK BUSY] User ID {user_id} requested '{query}' while another scrape is running.")
         await update.message.reply_text(
             "⏳ Another scrape job is currently running. Please wait a moment and try again."
         )
@@ -118,6 +122,7 @@ async def run_scrape_and_send(update: Update, query: str, count: int):
             nonlocal last_update_count
             if found_count > last_update_count:
                 last_update_count = found_count
+                logger.info(f"📊 [SCRAPE PROGRESS] {found_count}/{total_limit} leads found. Latest: '{current_name}'")
                 try:
                     await status_msg.edit_text(
                         f"🔍 <b>Scraping Google Maps...</b>\n\n"
@@ -126,20 +131,22 @@ async def run_scrape_and_send(update: Update, query: str, count: int):
                         f"• <b>Latest Found:</b> {escape_html(current_name)} (No website)",
                         parse_mode="HTML"
                     )
-                except Exception:
-                    pass
+                except Exception as edit_err:
+                    logger.debug(f"Progress update edit error: {edit_err}")
 
         try:
+            logger.info(f"🚀 [LAUNCHING SCRAPER] Query: '{query}' | Limit: {count}")
             leads = await asyncio.wait_for(
                 scrape_google_maps(
                     query=query,
                     limit=count,
                     progress_callback=progress_update
                 ),
-                timeout=120.0
+                timeout=180.0
             )
 
             if not leads:
+                logger.warning(f"❌ [NO LEADS FOUND] 0 leads found without a website for query: '{query}'")
                 await status_msg.edit_text(
                     f"❌ <b>No leads found without a website</b> for query: <code>{escape_html(query)}</code>.\n"
                     f"Try searching a different location or niche!",
@@ -147,6 +154,7 @@ async def run_scrape_and_send(update: Update, query: str, count: int):
                 )
                 return
 
+            logger.info(f"✅ [SCRAPE SUCCESS] Found {len(leads)} qualified leads! Delivering cards to Telegram...")
             await status_msg.edit_text(
                 f"✅ <b>Scrape Completed!</b>\n"
                 f"Found <b>{len(leads)}</b> qualified businesses without a website.\n"
