@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import sys
+import urllib.parse
 from aiohttp import web
 
 # Ensure UTF-8 output encoding for Windows consoles
@@ -11,7 +12,7 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -209,6 +210,28 @@ async def run_scrape_and_send(update: Update, query: str, count: int):
                 maps_url = lead.get("maps_url", "")
                 maps_link_html = f"<a href='{maps_url}'>View on Google Maps</a>" if maps_url else "N/A"
 
+                # Format phone number & pitch for WhatsApp deep link with pre-filled message
+                raw_phone = lead.get("phone", "")
+                clean_phone = re.sub(r'\D', '', raw_phone)
+                if len(clean_phone) == 10 and clean_phone[0] in "6789":
+                    clean_phone = "91" + clean_phone
+                elif len(clean_phone) == 11 and clean_phone.startswith("0"):
+                    clean_phone = "91" + clean_phone[1:]
+
+                encoded_pitch = urllib.parse.quote(pitch)
+                if clean_phone and len(clean_phone) >= 7:
+                    wa_url = f"https://wa.me/{clean_phone}?text={encoded_pitch}"
+                else:
+                    wa_url = f"https://wa.me/?text={encoded_pitch}"
+
+                inline_buttons = [
+                    [InlineKeyboardButton("💬 Send via WhatsApp", url=wa_url)]
+                ]
+                if maps_url:
+                    inline_buttons[0].append(InlineKeyboardButton("📍 Google Maps", url=maps_url))
+
+                reply_markup = InlineKeyboardMarkup(inline_buttons)
+
                 card_html = (
                     f"<b>🎯 LEAD CARD #{index}/{len(leads)}</b>\n\n"
                     f"🏢 <b>Name:</b> {escape_html(lead['name'])}\n"
@@ -226,6 +249,7 @@ async def run_scrape_and_send(update: Update, query: str, count: int):
                 await update.message.reply_text(
                     card_html,
                     parse_mode="HTML",
+                    reply_markup=reply_markup,
                     disable_web_page_preview=True
                 )
                 # Small delay between messages to avoid rate limits
