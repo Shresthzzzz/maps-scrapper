@@ -14,7 +14,7 @@ services:
       - key: OPENCODE_ZEN_BASE_URL
         value: https://opencode.ai/zen/v1
       - key: AI_MODEL
-        value: zen-1
+        value: deepseek-v4-flash-free
       - key: HEADLESS
         value: "true"
       - key: DEFAULT_NICHE
