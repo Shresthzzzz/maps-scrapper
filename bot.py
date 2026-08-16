@@ -1,7 +1,9 @@
 import asyncio
 import logging
+import os
 import re
 import sys
+from aiohttp import web
 
 # Ensure UTF-8 output encoding for Windows consoles
 if hasattr(sys.stdout, "reconfigure"):
@@ -231,6 +233,22 @@ async def text_number_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
         await run_scrape_and_send(update, default_niche, count)
 
+async def post_init(application: Application):
+    """Starts a lightweight web server for Render health checks."""
+    app = web.Application()
+    async def handle_health(request):
+        return web.Response(text="Google Maps Telegram Lead Bot is running!")
+    
+    app.router.add_get("/", handle_health)
+    app.router.add_get("/health", handle_health)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv("PORT", "10000"))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logger.info(f"Health check web server running on 0.0.0.0:{port}")
+
 def main():
     """Main application entrypoint."""
     config.validate_config()
@@ -240,8 +258,13 @@ def main():
         print("\n[ERROR] TELEGRAM_BOT_TOKEN not found! Please create a .env file with your token.\n")
         return
 
-    # Build python-telegram-bot application
-    application = Application.builder().token(config.TELEGRAM_BOT_TOKEN).build()
+    # Build python-telegram-bot application with post_init health server
+    application = (
+        Application.builder()
+        .token(config.TELEGRAM_BOT_TOKEN)
+        .post_init(post_init)
+        .build()
+    )
 
     # Add Command Handlers
     application.add_handler(CommandHandler(["start", "help"], start_command))
