@@ -20,7 +20,8 @@ def get_ai_client():
 
 def generate_pitch(lead: dict) -> str:
     """
-    Generates a personalized cold DM pitch for a business lacking a website using Nexaura's Gold Standard Master Template.
+    Generates a unique, hyper-personalized cold DM pitch for a business lacking a website.
+    Every pitch is uniquely written based on the business's specific name, category, rating, and location.
     """
     business_name = lead.get("name", "Business")
     category = lead.get("category", "Local Business")
@@ -29,7 +30,7 @@ def generate_pitch(lead: dict) -> str:
     rating = lead.get("rating", "N/A")
     reviews = lead.get("reviews", "N/A")
 
-    # Dynamic profession mapping for fallback & AI guidance
+    # Dynamic profession audience mapping
     cat_lower = (category or "").lower()
     if any(w in cat_lower for w in ["clinic", "dentist", "doctor", "health", "hospital", "medical", "dermatology"]):
         audience = "patient"
@@ -46,62 +47,70 @@ def generate_pitch(lead: dict) -> str:
     elif any(w in cat_lower for w in ["law", "lawyer", "attorney", "legal", "accounting", "consultant"]):
         audience = "client"
         goal = "consultations"
-    elif any(w in cat_lower for w in ["restaurant", "cafe", "bakery", "food", "dining"]):
-        audience = "customer"
-        goal = "orders and table reservations"
     else:
         audience = "customer"
         goal = "bookings and inquiries"
 
-    template_fallback = (
-        f"Hi {business_name} team,\n\n"
-        f"I love what you've built—your online presence is already strong. However, we noticed a few quick technical tweaks that could significantly improve your {audience} user experience and streamline operations.\n\n"
-        f"At Nexaura, we help businesses scale by automating appointment systems, upgrading websites, and building out custom tech solutions.\n\n"
-        f"Would you be open to a quick 10-minute chat this week to see how we can help you streamline {goal}? Let me know what day and time works best for you.\n\n"
-        f"Best,\n\n"
-        f"Nexaura"
-    )
+    # Multiple diverse fallback templates for offline mode
+    fallbacks = [
+        (
+            f"Hi {business_name} team,\n\n"
+            f"I love what you've built—your online reputation ({rating}⭐) is already strong! However, we noticed a few quick technical tweaks that could significantly improve your {audience} user experience and streamline operations.\n\n"
+            f"At Nexaura, we help businesses scale by automating appointment systems, upgrading websites, and building out custom tech solutions.\n\n"
+            f"Would you be open to a quick 10-minute chat this week to see how we can help you streamline {goal}? Let me know what day and time works best for you.\n\n"
+            f"Best,\n\nNexaura"
+        ),
+        (
+            f"Hey {business_name} team 👋,\n\n"
+            f"I was looking through local {category} businesses in {location} and noticed your Google profile has impressive feedback ({rating}⭐). "
+            f"One major opportunity stood out—you don't have a website attached to Google Maps yet, which means prospective {audience}s are clicking over to competitors instead.\n\n"
+            f"We're Nexaura, a digital technology studio. We build custom websites, AI booking tools, and lead capture systems that act as growth assets.\n\n"
+            f"Would you be open to seeing a free 2-minute website mockup preview we created for {business_name}?\n\n"
+            f"Best,\n\nNexaura"
+        ),
+        (
+            f"Hi team at {business_name},\n\n"
+            f"Your standing in {location} ({rating} stars across {reviews} reviews) caught our eye—great work! "
+            f"However, missing a dedicated website on Google Maps means missing out on dozens of direct {goal} every month.\n\n"
+            f"At Nexaura, we build conversion-focused websites and automated workflow solutions tailored specifically for {category} businesses.\n\n"
+            f"Open to a quick 10-minute conversation to explore how we can help you capture more leads?\n\n"
+            f"Best,\n\nNexaura"
+        )
+    ]
+
+    # Select fallback based on hash of business name so different leads get different fallback styles
+    name_hash = sum(ord(c) for c in business_name)
+    template_fallback = fallbacks[name_hash % len(fallbacks)]
 
     client = get_ai_client()
-
     if not client:
         return template_fallback
 
-    system_prompt = f"""You are the AI cold outreach copywriter for Nexaura.
+    system_prompt = """You are the elite AI B2B cold outreach strategist and copywriter for Nexaura (a modern technology studio specializing in custom websites, AI automation, booking systems, and tech solutions).
 
-YOUR MISSION: Write a cold outreach DM for any business scraped from Google Maps following this EXACT Master Template structure and tone:
+YOUR MISSION: Write a unique, hyper-personalized, humanized cold DM tailored to a specific business found on Google Maps that DOES NOT have a website.
 
---- MASTER TEMPLATE ---
-Hi [Business Name] team,
-
-I love what you've built—your online presence is already strong. However, we noticed a few quick technical tweaks that could significantly improve your [target audience: patient / client / customer / buyer] user experience and streamline operations.
-
-At Nexaura, we help businesses scale by automating appointment systems, upgrading websites, and building out custom tech solutions.
-
-Would you be open to a quick 10-minute chat this week to see how we can help you streamline [target goal: bookings / inquiries / service calls / consultations]? Let me know what day and time works best for you.
-
-Best,
-
-Nexaura
---- END TEMPLATE ---
-
-RULES:
-1. Follow the template's EXACT greeting ("Hi [Business Name] team,"), 3-paragraph structure, tone, and sign-off ("Best,\n\nNexaura").
-2. Adapt terms like '[target audience]' and '[target goal]' dynamically based on the prospect's profession.
-3. Output ONLY the ready-to-send DM message text. Do NOT add commentary, subject lines, or quotes.
+OUTREACH PHILOSOPHY & MANDATORY RULES:
+1. NO ROBOTIC TEMPLATES: Every message MUST be uniquely worded and start with a fresh opening. Never send copy-paste template DMs.
+2. SHOW REAL EFFORT & RECOGNITION: Compliment their specific reputation, star rating, review count, or location standing. Show you actually looked at their business.
+3. HIGHLIGHT A LEGITIMATE OPPORTUNITY: Point out that having no website on Google Maps lets prospective clients/patients/buyers slip away to competitors with online sites.
+4. POSITION NEXAURA AS AN ASSET: Present Nexaura's solutions (conversion-focused sites, AI booking, lead capture) as a business asset that drives growth.
+5. LOW-FRICTION CTA: End with a friendly, low-pressure question (e.g. offering a quick 10-minute chat or sending a free 2-minute site preview).
+6. TONE: Friendly, respectful, intelligent, modern, concise (45 to 80 words).
+7. OUTPUT: Output ONLY the raw message text ready to send. No quotes, subject lines, or labels.
 """
 
-    user_prompt = f"""
-Prospect Details:
+    user_prompt = f"""Prospect Details:
 - Business Name: {business_name}
-- Profession / Category: {category}
+- Category: {category}
 - Location: {location}
-- Target Audience Term: {audience}
-- Target Goal Term: {goal}
+- Phone: {phone}
+- Google Rating: {rating} stars ({reviews} reviews)
+- Status: NO WEBSITE attached to Google Maps profile
 
 Instructions:
-Write the exact outreach DM using Nexaura's Master Template.
-Return ONLY the final ready-to-send message.
+Write a unique, highly-personalized, humanized cold DM for Nexaura.
+Make it feel custom-tailored to them. Return ONLY the final ready-to-send message.
 """
 
     candidate_models = list(dict.fromkeys([
@@ -123,7 +132,7 @@ Return ONLY the final ready-to-send message.
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.4,
+                temperature=0.8,
                 max_tokens=250
             )
             pitch = response.choices[0].message.content.strip()
