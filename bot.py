@@ -346,6 +346,15 @@ async def post_init(application: Application):
     await site.start()
     logger.info(f"Health check web server running on 0.0.0.0:{port}")
 
+from telegram.error import Conflict
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE):
+    """Gracefully handles Conflict errors during rolling deployment restarts."""
+    if isinstance(context.error, Conflict):
+        logger.info("ℹ️ Telegram 409 Conflict handled cleanly during instance deployment transition.")
+        return
+    logger.error(f"Exception while handling update: {context.error}", exc_info=context.error)
+
 def main():
     """Main application entrypoint."""
     config.validate_config()
@@ -362,6 +371,9 @@ def main():
         .post_init(post_init)
         .build()
     )
+
+    # Add Error Handler to handle deployment conflicts gracefully
+    application.add_error_handler(error_handler)
 
     # Add Command Handlers
     application.add_handler(CommandHandler(["start", "help"], start_command))
