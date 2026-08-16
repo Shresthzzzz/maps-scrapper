@@ -77,6 +77,16 @@ async def scrape_google_maps(
                         if (!feed) return [];
                         const items = Array.from(feed.querySelectorAll("div:has(> a[href*='/maps/place/']), div:has(div.fontHeadlineSmall), div.Nv2pk"));
                         
+                        const socialDomains = ["instagram.com", "facebook.com", "twitter.com", "x.com", "linkedin.com", "tiktok.com", "youtube.com", "wa.me", "whatsapp.com", "t.me", "linktr.ee"];
+
+                        function isRealWebsite(href) {
+                            if (!href || href.length <= 5 || href.includes("google.com")) return false;
+                            const lower = href.toLowerCase();
+                            // If it's a social profile link, it's NOT a real custom website!
+                            if (socialDomains.some(d => lower.includes(d))) return false;
+                            return true;
+                        }
+                        
                         const extracted = [];
                         for (const item of items) {
                             const titleEl = item.querySelector(".fontHeadlineSmall, div.qBF1Pd, span.OSrA2c");
@@ -85,15 +95,19 @@ async def scrape_google_maps(
                             const name = titleEl.innerText.trim();
                             if (!name) continue;
                             
-                            // Check website link inside card
+                            // Check website button link inside card
                             const webBtn = item.querySelector("a[aria-label*='website'], a[aria-label*='Website'], a[data-value='Website']");
                             let hasWebsite = false;
                             let websiteUrl = null;
+                            let inlineSocial = [];
+
                             if (webBtn) {
                                 const href = webBtn.getAttribute("href") || "";
-                                if (href.length > 5 && !href.includes("google.com")) {
+                                if (isRealWebsite(href)) {
                                     hasWebsite = true;
                                     websiteUrl = href;
+                                } else if (href && socialDomains.some(d => href.toLowerCase().includes(d))) {
+                                    inlineSocial.push(href);
                                 }
                             }
                             
@@ -109,6 +123,7 @@ async def scrape_google_maps(
                                 name,
                                 hasWebsite,
                                 websiteUrl,
+                                inlineSocial,
                                 rating,
                                 reviews,
                                 mapsUrl
@@ -173,8 +188,10 @@ async def scrape_google_maps(
                                     return found;
                                 }
                             """)
-                    except Exception as de:
-                        logger.warning(f"Could not click detail drawer for '{name}': {de}")
+                    if c.get("inlineSocial"):
+                        for sl in c["inlineSocial"]:
+                            if sl not in social_links:
+                                social_links.append(sl)
 
                     lead = {
                         "name": name,
