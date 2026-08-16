@@ -196,10 +196,18 @@ async def run_scrape_and_send(update: Update, query: str, count: int):
                 # Small delay between messages to avoid rate limits
                 await asyncio.sleep(0.8)
 
+        except asyncio.TimeoutError:
+            logger.error(f"❌ [TIMEOUT] Scrape job timed out after 180s for query '{query}'")
+            await status_msg.edit_text(
+                f"⚠️ <b>Scrape Timeout</b>: Google Maps took longer than expected to load results.\n"
+                f"Please try again with a lower lead count (e.g. <code>3</code> or <code>5</code>).",
+                parse_mode="HTML"
+            )
         except Exception as e:
-            logger.error(f"Error during scrape job execution: {e}")
-            await update.message.reply_text(
-                f"⚠️ An error occurred while scraping: <code>{escape_html(str(e))}</code>",
+            err_msg = str(e) or repr(e)
+            logger.error(f"❌ [JOB ERROR] Error during scrape execution: {err_msg}", exc_info=True)
+            await status_msg.edit_text(
+                f"⚠️ <b>An error occurred while scraping:</b> <code>{escape_html(err_msg)}</code>",
                 parse_mode="HTML"
             )
 

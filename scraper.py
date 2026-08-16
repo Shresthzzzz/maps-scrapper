@@ -67,17 +67,47 @@ async def scrape_google_maps(
             # Force English language for consistent DOM selectors
             search_url_en = f"{search_url}?hl=en"
             logger.info(f"🌐 [1/5 NAVIGATE] Navigating to Google Maps: {search_url_en}")
-            await page.goto(search_url_en, wait_until="domcontentloaded", timeout=45000)
-            await dismiss_google_consent(page)
+            
+            # Use 'commit' to avoid hanging on streaming map tiles
+            try:
+                await page.goto(search_url_en, wait_until="commit", timeout=20000)
+            except Exception as goto_err:
+                logger.warning(f"⚠️ [GOTO WARNING] Navigation commit timeout: {goto_err}. Continuing...")
+
             await page.wait_for_timeout(2000)
 
-            # Locate the results feed panel
-            feed_selector = "div[role='feed']"
-            try:
-                await page.wait_for_selector(feed_selector, timeout=15000)
-                logger.info("✅ [2/5 FEED READY] Google Maps results feed container loaded successfully.")
-            except PlaywrightTimeoutError:
-                logger.warning("⚠️ [FEED WARNING] Results feed selector not found within 15s. Continuing...")
+            # Check if redirected to Google Consent Wall
+            current_url = page.url
+            logger.info(f"📍 [CURRENT URL] {current_url}")
+
+            if "consent.google" in current_url:
+                logger.info("🍪 [CONSENT WALL] Detected Google Consent Wall. Clicking Accept...")
+                try:
+                    accept_btn = page.locator("button:has-text('Accept all'), button:has-text('I agree'), button:has-text('Accept'), form button").first
+                    if await accept_btn.count() > 0:
+                        await accept_btn.click()
+                        await page.wait_for_timeout(2000)
+                        logger.info("✅ [CONSENT CLEARED] Clicked consent button.")
+                except Exception as ce:
+                    logger.warning(f"Consent bypass warning: {ce}")
+
+            # Dismiss in-page popups if present
+            await dismiss_google_consent(page)
+
+            # Wait for results feed panel or business cards
+            feed_selectors = ["div[role='feed']", "div.m6QE4c", "div.Nv2pk"]
+            feed_found = False
+            for sel in feed_selectors:
+                try:
+                    await page.wait_for_selector(sel, timeout=8000)
+                    logger.info(f"✅ [2/5 FEED READY] Found selector: '{sel}'")
+                    feed_found = True
+                    break
+                except PlaywrightTimeoutError:
+                    continue
+
+            if not feed_found:
+                logger.warning("⚠️ [FEED WARNING] No standard feed selector appeared. Attempting direct card search...")
 
             # Scroll and gather items
             attempts = 0
