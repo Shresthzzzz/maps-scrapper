@@ -61,7 +61,16 @@ Instructions:
 5. Keep it natural, professional, and friendly. Do not use hashtags.
 """
 
-    candidate_models = list(dict.fromkeys([config.AI_MODEL, "big-pickle", "deepseek-v4-flash-free", "mimo-v2.5-free", "laguna-s-2.1-free"]))
+    candidate_models = list(dict.fromkeys([
+        config.AI_MODEL, 
+        "big-pickle", 
+        "deepseek-v4-flash-free", 
+        "mimo-v2.5-free", 
+        "laguna-s-2.1-free", 
+        "nemotron-3.5-lightning-free", 
+        "nemotron-3-ultra-free", 
+        "hy3-free"
+    ]))
 
     for model_name in candidate_models:
         try:
@@ -78,10 +87,10 @@ Instructions:
             return pitch
         except Exception as e:
             err_str = str(e)
-            logger.warning(f"AI pitch generation failed for model '{model_name}': {err_str}")
             if "429" in err_str or "FreeUsageLimitError" in err_str or "Rate limit" in err_str:
-                logger.info("⚡ [RATE LIMIT DETECTED] Switching to instant high-converting pitch template.")
-                break
+                logger.info(f"Model '{model_name}' free limit reached, trying next model...")
+            else:
+                logger.warning(f"AI model '{model_name}' error: {err_str}")
             continue
 
     # Return fallback template if all API calls encounter issues
