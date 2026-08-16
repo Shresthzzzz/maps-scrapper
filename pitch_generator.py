@@ -10,7 +10,8 @@ def get_ai_client():
     try:
         client = OpenAI(
             api_key=config.OPENCODE_ZEN_API_KEY,
-            base_url=config.OPENCODE_ZEN_BASE_URL if config.OPENCODE_ZEN_BASE_URL else None
+            base_url=config.OPENCODE_ZEN_BASE_URL if config.OPENCODE_ZEN_BASE_URL else None,
+            max_retries=0
         )
         return client
     except Exception as e:
@@ -76,7 +77,11 @@ Instructions:
             pitch = response.choices[0].message.content.strip()
             return pitch
         except Exception as e:
-            logger.warning(f"AI pitch generation failed for model '{model_name}': {e}")
+            err_str = str(e)
+            logger.warning(f"AI pitch generation failed for model '{model_name}': {err_str}")
+            if "429" in err_str or "FreeUsageLimitError" in err_str or "Rate limit" in err_str:
+                logger.info("⚡ [RATE LIMIT DETECTED] Switching to instant high-converting pitch template.")
+                break
             continue
 
     # Return fallback template if all API calls encounter issues
