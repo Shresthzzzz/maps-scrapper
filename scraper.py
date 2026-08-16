@@ -188,6 +188,9 @@ async def scrape_google_maps(
                                     return found;
                                 }
                             """)
+                    except Exception as de:
+                        logger.warning(f"Could not click detail drawer for '{name}': {de}")
+
                     if c.get("inlineSocial"):
                         for sl in c["inlineSocial"]:
                             if sl not in social_links:
