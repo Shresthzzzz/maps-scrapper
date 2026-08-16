@@ -35,30 +35,57 @@ def generate_pitch(lead: dict) -> str:
         # Fallback high-quality template if API Key is missing or unavailable
         return (
             f"Hey team at {business_name}! 👋\n\n"
-            f"I saw your high rating ({rating}⭐) on Google Maps in {location}. "
-            f"Notice you don't have a website linked to your Google profile yet—which means you're missing out on dozens of new customers searching for {category} every week!\n\n"
-            f"We build fast, high-converting websites & online booking systems designed to double local leads. "
-            f"Would you be open to seeing a free 2-minute mockup I created for {business_name}?"
+            f"I came across your high rating ({rating}⭐) on Google Maps in {location}. "
+            f"I noticed your Google profile doesn't have a website attached—meaning you're likely losing dozens of prospective local clients every week to competitors.\n\n"
+            f"At NEXAURA, we build modern, conversion-focused websites & lead capture systems for {category}. "
+            f"Would you be open to a quick, free 2-minute site preview mockup for {business_name}?"
         )
 
-    system_prompt = (
-        "You are an expert sales copywriter specializing in web design and digital marketing agency cold outreach. "
-        "Your task is to write a short, highly compelling, personal, non-spammy cold DM pitch (under 120 words) "
-        "to a local business owner who DOES NOT have a website on Google Maps."
-    )
+    system_prompt = """NEXAURA — ELITE COLD OUTREACH COPYWRITER
+## MASTER SYSTEM / TRAINING PROMPT
+
+You are the dedicated AI cold-outreach strategist and copywriter for NEXAURA.
+
+Your sole purpose is to help NEXAURA generate high-quality outbound messages that start genuine conversations with potential clients.
+
+You are NOT a generic marketing copywriter.
+You are NOT a spam generator.
+You are NOT trying to make every message sound impressive.
+
+You are a highly selective B2B outbound specialist whose priority is:
+1. Get the prospect to read the message.
+2. Make the prospect feel that the message was specifically written for them.
+3. Identify a legitimate business opportunity or weakness (e.g. LACK OF WEBSITE ON GOOGLE MAPS).
+4. Communicate the value of solving that problem.
+5. Make NEXAURA feel capable, modern, professional and trustworthy.
+6. Make the offer feel like an investment/asset rather than an expense.
+7. Create curiosity.
+8. Get a reply.
+9. Never overwhelm the prospect.
+
+Your primary KPI is RESPONSE RATE, not message length, cleverness, or number of features mentioned.
+
+--------------------------------------------------
+# ABOUT NEXAURA
+--------------------------------------------------
+NEXAURA is a modern digital studio that helps businesses build better digital experiences and systems.
+Core capabilities: Professional business websites, Premium landing pages, Conversion-focused websites, Healthcare/dental websites, AI automation, Appointment booking systems, WhatsApp integrations, Lead capture systems.
+"""
 
     user_prompt = f"""
-Business Name: {business_name}
-Category: {category}
-Address/Location: {location}
-Rating: {rating} stars ({reviews} reviews)
+Prospect Details:
+- Business Name: {business_name}
+- Category: {category}
+- Location: {location}
+- Google Rating: {rating} stars ({reviews} reviews)
+- Website Status: NO WEBSITE attached on Google Maps
 
 Instructions:
-1. Briefly compliment their Google rating/reputation.
-2. Point out that they currently lack a website link on Google Maps, missing valuable local searches.
-3. Propose building a clean, modern website/booking page tailored to get them more paying clients.
-4. End with a low-friction Call To Action (asking if you can send a quick free demo/mockup link).
-5. Keep it natural, professional, and friendly. Do not use hashtags.
+Write a short, high-converting cold DM on behalf of NEXAURA (under 100 words).
+1. Compliment their Google reputation.
+2. Point out that having no website on Google Maps loses prospective local clients to competitors.
+3. Offer a low-friction value step from NEXAURA (e.g., asking if you can send over a quick free site preview/mockup).
+4. Keep it conversational, personal, concise, and response-focused. Do not use hashtags.
 """
 
     candidate_models = list(dict.fromkeys([
@@ -96,7 +123,7 @@ Instructions:
     # Return fallback template if all API calls encounter issues
     return (
         f"Hey team at {business_name}! 👋\n\n"
-        f"I came across your business on Google Maps ({rating}⭐). "
-        f"I noticed your Google profile doesn't have a website attached. You're likely losing 30-40% of prospective clients who look for an online site before calling.\n\n"
-        f"We specialize in modern web designs for {category}. Could I send over a quick free site preview for {business_name}?"
+        f"I came across your high rating ({rating}⭐) on Google Maps in {location}. "
+        f"I noticed your Google profile doesn't have a website attached—meaning you're likely losing prospective local clients to competitors.\n\n"
+        f"At NEXAURA, we build modern, conversion-focused websites & lead capture systems for {category}. Could I send over a quick free 2-minute site preview mockup for {business_name}?"
     )
