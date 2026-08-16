@@ -2,6 +2,7 @@ import asyncio
 import logging
 import urllib.parse
 import re
+import time
 from typing import List, Dict, Callable, Optional
 from playwright.async_api import async_playwright, Page
 import config
@@ -71,9 +72,21 @@ async def scrape_google_maps(
 
             scroll_attempts = 0
             max_scrolls = max(limit * 5, 25)
+            last_lead_time = time.time()
+            prev_leads_count = 0
 
             while len(leads) < limit and scroll_attempts < max_scrolls:
                 scroll_attempts += 1
+                
+                # Check for 20-second stall if leads were already found but no new leads added recently
+                current_time = time.time()
+                if len(leads) > 0 and (current_time - last_lead_time) > 20.0:
+                    logger.warning(f"⏱️ [STALL DETECTED] No new qualified leads found for 20 seconds ({len(leads)}/{limit} collected). Delivering current batch now!")
+                    break
+
+                if len(leads) > prev_leads_count:
+                    last_lead_time = current_time
+                    prev_leads_count = len(leads)
                 
                 # Fast V8 JS extraction of all current card elements in the feed
                 raw_cards = await page.evaluate("""
@@ -272,7 +285,7 @@ async def scrape_google_maps(
                         const feed = document.querySelector("div[role='feed']");
                         if (feed) feed.scrollTop = feed.scrollHeight;
                     """)
-                    await page.wait_for_timeout(1500)
+                    await page.wait_for_timeout(800)
 
         except Exception as e:
             logger.error(f"❌ [SCRAPER FATAL ERROR] {e}", exc_info=True)

@@ -136,7 +136,17 @@ Make it feel custom-tailored to them. Return ONLY the final ready-to-send messag
                 max_tokens=250
             )
             pitch = response.choices[0].message.content.strip()
-            if pitch and len(pitch) > 30:
+            # Clean up thinking process leakage if model outputs internal reasoning
+            if "Here's a thinking process" in pitch or "<think>" in pitch:
+                if "</think>" in pitch:
+                    pitch = pitch.split("</think>")[-1].strip()
+                elif "Here's a thinking process:" in pitch:
+                    # Keep text after the thinking section or fallback to clean structure
+                    parts = pitch.split("\n\n")
+                    clean_parts = [p for p in parts if not p.strip().startswith("1.") and not p.strip().startswith("2.") and "thinking process" not in p.lower() and "Role:" not in p and "Mission:" not in p and "Prospect Details:" not in p]
+                    pitch = "\n\n".join(clean_parts).strip()
+
+            if pitch and len(pitch) > 30 and "thinking process" not in pitch.lower():
                 return pitch
         except Exception as e:
             err_str = str(e)
