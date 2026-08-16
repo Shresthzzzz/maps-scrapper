@@ -1,4 +1,4 @@
-# Use official Playwright image pre-packaged with Python 3.11 and browser binaries
+# Use official Playwright image pre-packaged with Python 3.11 and Chromium browser
 FROM mcr.microsoft.com/playwright/python:v1.45.0-jammy
 
 # Set environment variables
@@ -14,9 +14,6 @@ COPY requirements.txt .
 
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Ensure Playwright chromium browser is ready
-RUN playwright install chromium
 
 # Copy application files
 COPY . .
