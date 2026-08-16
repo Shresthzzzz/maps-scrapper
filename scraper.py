@@ -118,6 +118,7 @@ async def scrape_google_maps(
                             
                             const linkEl = item.querySelector("a[href*='/maps/place/']");
                             const mapsUrl = linkEl ? linkEl.href : "";
+                            const cardText = item.innerText || "";
                             
                             extracted.push({
                                 name,
@@ -126,7 +127,8 @@ async def scrape_google_maps(
                                 inlineSocial,
                                 rating,
                                 reviews,
-                                mapsUrl
+                                mapsUrl,
+                                cardText
                             });
                         }
                         return extracted;
@@ -153,31 +155,50 @@ async def scrape_google_maps(
 
                     logger.info(f"🎯 [QUALIFIED LEAD FOUND] '{name}' HAS NO WEBSITE!")
 
-                    # Fetch phone & address by clicking on card title
+                    # Fetch phone & address by clicking on card element via JS or card text regex fallback
                     phone = "Not Listed"
                     address = "Not Listed"
                     social_links = []
 
                     try:
-                        title_locator = page.locator(f"text='{name}'").first
-                        if await title_locator.count() > 0:
-                            await title_locator.click(timeout=3000)
-                            await page.wait_for_timeout(1000)
+                        # Fast V8 JS click to open detail drawer without page navigation timeout
+                        clicked = await page.evaluate("""
+                            (targetName) => {
+                                const feed = document.querySelector("div[role='feed']");
+                                if (!feed) return false;
+                                const items = Array.from(feed.querySelectorAll("div:has(> a[href*='/maps/place/']), div.Nv2pk"));
+                                for (const item of items) {
+                                    const titleEl = item.querySelector(".fontHeadlineSmall, div.qBF1Pd, span.OSrA2c");
+                                    if (titleEl && titleEl.innerText.trim().toLowerCase() === targetName.toLowerCase()) {
+                                        const link = item.querySelector("a[href*='/maps/place/']") || titleEl;
+                                        link.click();
+                                        return true;
+                                    }
+                                }
+                                return false;
+                            }
+                        """, name)
 
+                        if clicked:
+                            await page.wait_for_timeout(1200)
+
+                            # 1. Phone from side drawer
                             phone_el = page.locator("button[data-item-id^='phone:']").first
                             if await phone_el.count() > 0:
                                 phone_attr = await phone_el.get_attribute("aria-label")
                                 phone = phone_attr.replace("Phone: ", "").strip() if phone_attr else (await phone_el.inner_text()).strip()
 
+                            # 2. Address from side drawer
                             address_el = page.locator("button[data-item-id='address']").first
                             if await address_el.count() > 0:
                                 addr_attr = await address_el.get_attribute("aria-label")
                                 address = addr_attr.replace("Address: ", "").strip() if addr_attr else (await address_el.inner_text()).strip()
 
+                            # 3. Social links from side drawer
                             social_links = await page.evaluate("""
                                 () => {
                                     const links = Array.from(document.querySelectorAll("a[href]"));
-                                    const domains = ["instagram.com", "facebook.com", "twitter.com", "x.com", "linkedin.com", "tiktok.com"];
+                                    const domains = ["instagram.com", "facebook.com", "twitter.com", "x.com", "linkedin.com", "tiktok.com", "wa.me", "whatsapp.com"];
                                     const found = [];
                                     for (const l of links) {
                                         const href = l.href || "";
@@ -189,7 +210,23 @@ async def scrape_google_maps(
                                 }
                             """)
                     except Exception as de:
-                        logger.warning(f"Could not click detail drawer for '{name}': {de}")
+                        logger.warning(f"Could not extract drawer for '{name}': {de}")
+
+                    # Regex fallback for phone number from card text if drawer extraction was empty
+                    card_text = c.get("cardText", "")
+                    if phone == "Not Listed" and card_text:
+                        phone_match = re.search(r'(\+?\d{1,4}[-.\s]?)?(\(?\d{2,5}\)?[-.\s]?)?\d{3,5}[-.\s]?\d{3,5}', card_text)
+                        if phone_match and len(phone_match.group(0).strip()) >= 7:
+                            phone = phone_match.group(0).strip()
+
+                    # Fallback address from card text if drawer address was empty
+                    if address == "Not Listed" and card_text:
+                        lines = [l.strip() for l in card_text.split('\n') if l.strip()]
+                        # Usually line 1 is Name, line 2 is Rating, line 3 is Category, line 4 is Address
+                        for line in lines[2:]:
+                            if name.lower() not in line.lower() and not re.search(r'^\d+\.\d+', line) and "stars" not in line.lower() and len(line) > 5:
+                                address = line
+                                break
 
                     if c.get("inlineSocial"):
                         for sl in c["inlineSocial"]:
