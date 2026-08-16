@@ -8,7 +8,7 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 OPENCODE_ZEN_API_KEY = os.getenv("OPENCODE_ZEN_API_KEY", "")
 # Default base URL for OpenCode Zen / OpenAI compatible API
 OPENCODE_ZEN_BASE_URL = os.getenv("OPENCODE_ZEN_BASE_URL", "https://opencode.ai/zen/v1")
-AI_MODEL = os.getenv("AI_MODEL", "opencode/zen-1")
+AI_MODEL = os.getenv("AI_MODEL", "zen-1")
 
 # Scraper configuration
 HEADLESS = os.getenv("HEADLESS", "true").lower() == "true"

@@ -60,24 +60,29 @@ Instructions:
 5. Keep it natural, professional, and friendly. Do not use hashtags.
 """
 
-    try:
-        response = client.chat.completions.create(
-            model=config.AI_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.7,
-            max_tokens=250
-        )
-        pitch = response.choices[0].message.content.strip()
-        return pitch
-    except Exception as e:
-        logger.error(f"Error generating pitch via AI API: {e}")
-        # Return fallback template if API call encounters an issue
-        return (
-            f"Hey team at {business_name}! 👋\n\n"
-            f"I came across your business on Google Maps ({rating}⭐). "
-            f"I noticed your Google profile doesn't have a website attached. You're likely losing 30-40% of prospective clients who look for an online site before calling.\n\n"
-            f"We specialize in modern web designs for {category}. Could I send over a quick free site preview for {business_name}?"
-        )
+    candidate_models = list(dict.fromkeys([config.AI_MODEL, "zen-1", "gpt-4o-mini", "claude-3-5-sonnet"]))
+
+    for model_name in candidate_models:
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.7,
+                max_tokens=250
+            )
+            pitch = response.choices[0].message.content.strip()
+            return pitch
+        except Exception as e:
+            logger.warning(f"AI pitch generation failed for model '{model_name}': {e}")
+            continue
+
+    # Return fallback template if all API calls encounter issues
+    return (
+        f"Hey team at {business_name}! 👋\n\n"
+        f"I came across your business on Google Maps ({rating}⭐). "
+        f"I noticed your Google profile doesn't have a website attached. You're likely losing 30-40% of prospective clients who look for an online site before calling.\n\n"
+        f"We specialize in modern web designs for {category}. Could I send over a quick free site preview for {business_name}?"
+    )

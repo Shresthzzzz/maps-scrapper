@@ -14,7 +14,7 @@ services:
       - key: OPENCODE_ZEN_BASE_URL
         value: https://opencode.ai/zen/v1
       - key: AI_MODEL
-        value: opencode/zen-1
+        value: zen-1
       - key: HEADLESS
         value: "true"
       - key: DEFAULT_NICHE
