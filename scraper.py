@@ -161,6 +161,9 @@ async def scrape_google_maps(
                         if not name or name in scraped_names:
                             continue
 
+                        # Mark as processed immediately so we never re-click it in future scroll loops
+                        scraped_names.add(name)
+
                         # Check if card directly displays website icon / button in listing
                         website_button = card.locator("a[aria-label*='website'], a[aria-label*='Website'], a[data-value='Website']")
                         has_website = False
